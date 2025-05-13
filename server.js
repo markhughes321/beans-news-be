@@ -1,7 +1,7 @@
 const path = require("path");
 const dotenv = require("dotenv");
 const express = require("express");
-const cors = require("cors"); // Add cors
+const cors = require("cors");
 const { connectDB } = require("./config/database");
 const routes = require("./routes");
 const logger = require("./config/logger");
@@ -10,13 +10,13 @@ const { initCronJobs } = require("./cron/scheduler");
 
 // Load .env
 const envPath = path.join(__dirname, ".env");
-console.log(envPath);
 const dotenvResult = dotenv.config({ path: envPath });
 if (dotenvResult.error) {
   logger.error("Failed to load .env:", dotenvResult.error.message);
   process.exit(1);
 }
 logger.info(".env loaded successfully");
+
 // Add debug logging
 console.log("OPENAI_API_KEY:", process.env.OPENAI_API_KEY ? "[SET]" : "[UNSET]");
 console.log("SHOPIFY_ACCESS_TOKEN:", process.env.SHOPIFY_ACCESS_TOKEN ? "[SET]" : "[UNSET]");
@@ -38,12 +38,26 @@ async function startServer() {
 
   const app = express();
 
-  // Add CORS middleware
+  const allowedOrigins = [
+    "http://localhost:3010",
+    "https://beans-news-fe.netlify.app",
+    "https://beans.ie",
+    "http://192.168.0.44:3020"
+  ];
+
   app.use(cors({
-    origin: "http://localhost:3010",
+    origin: (origin, callback) => {
+      logger.debug("CORS check", { origin, allowedOrigins });
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        logger.warn("CORS rejected", { origin });
+        callback(new Error(`Origin ${origin} not allowed by CORS`));
+      }
+    },
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
-    credentials: false // Set to true if you add authentication with cookies
+    credentials: false
   }));
 
   app.use(express.json());
