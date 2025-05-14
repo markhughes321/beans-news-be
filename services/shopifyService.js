@@ -13,7 +13,12 @@ async function updateArticleInShopify(article) {
     logger.error("Invalid or missing Shopify metaobject ID", { uuid: article.uuid, shopifyMetaobjectId: article.shopifyMetaobjectId });
     throw new Error(`Invalid or missing Shopify metaobject ID for article: ${article.link}`);
   }
+  const handleBase = article.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+/g, "-").substring(0, 50);
+  const timestamp = article.publishedAt ? article.publishedAt.toISOString().split("T")[0].replace(/-/g, "") : new Date().toISOString().split("T")[0].replace(/-/g, "");
+  const reversedTimestamp = (99999999 - parseInt(timestamp)).toString().padStart(8, "0");
+  const handle = `${reversedTimestamp}-${handleBase}`;
   const metaobject = {
+    handle,
     fields: [
       { key: "uuid", value: article.uuid || "" },
       { key: "publishdate", value: article.publishedAt ? article.publishedAt.toISOString() : new Date().toISOString() },
@@ -49,8 +54,8 @@ async function updateArticleInShopify(article) {
   const requestPayload = {
     query: mutation,
     variables: {
-      id: article.shopifyMetaobjectId, // Separate id argument
-      metaobject,                     // Fields go here
+      id: article.shopifyMetaobjectId,
+      metaobject,
     },
   };
   logger.debug("GraphQL request payload to Shopify", { payload: JSON.stringify(requestPayload, null, 2) });
@@ -79,6 +84,10 @@ async function updateArticleInShopify(article) {
       logger.error("No metaobject returned", { response: data.data });
       throw new Error("No metaobject returned from Shopify after update");
     }
+    await Article.updateOne(
+      { _id: article._id },
+      { shopifyHandle: updatedMetaobject.handle }
+    );
     logger.info("Successfully updated article in Shopify", { link: article.link, shopifyId: updatedMetaobject.id });
   } catch (error) {
     logger.error("Failed to update article in Shopify", {
@@ -112,7 +121,8 @@ async function sendArticlesToShopify(sourceName) {
       }
       const handleBase = article.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+/g, "-").substring(0, 50);
       const timestamp = article.publishedAt ? article.publishedAt.toISOString().split("T")[0].replace(/-/g, "") : new Date().toISOString().split("T")[0].replace(/-/g, "");
-      const handle = `${timestamp}-${handleBase}`;
+      const reversedTimestamp = (99999999 - parseInt(timestamp)).toString().padStart(8, "0");
+      const handle = `${reversedTimestamp}-${handleBase}`;
       const input = {
         handle,
         type: "news_articles",
@@ -161,7 +171,7 @@ async function sendArticlesToShopify(sourceName) {
       if (!metaobject) throw new Error("No metaobject returned from Shopify");
       await Article.updateOne(
         { _id: article._id },
-        { shopifyMetaobjectId: metaobject.id, moderationStatus: "sentToShopify" }
+        { shopifyMetaobjectId: metaobject.id, shopifyHandle: metaobject.handle, moderationStatus: "sentToShopify" }
       );
       logger.info("Successfully sent article to Shopify", { link: article.link, shopifyId: metaobject.id });
     } catch (error) {

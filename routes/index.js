@@ -4,7 +4,6 @@ const articleController = require("../controllers/article.controller");
 const systemController = require("../controllers/system.controller");
 const sourcesController = require("../controllers/sources.controller");
 const scrapersController = require("../controllers/scrapers.controller");
-
 router.get("/articles", articleController.getAllArticles);
 router.get("/articles/:uuid", articleController.getArticle);
 router.put("/articles/:uuid", articleController.updateArticle);
@@ -18,5 +17,4 @@ router.post("/system/process-single-ai/:uuid", systemController.processSingleArt
 router.get("/system/scrapers", scrapersController.getScrapers);
 router.post("/system/scrapers", scrapersController.createScraper);
 router.get("/system/sources", sourcesController.getSources);
-
 module.exports = router;

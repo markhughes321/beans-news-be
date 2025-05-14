@@ -8,15 +8,14 @@ const SHOPIFY_API_URL = "https://b4cd1f-0d.myshopify.com/admin/api/2023-04/graph
 const SHOPIFY_ACCESS_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN;
 async function triggerScrape(req, res, next) {
   const sourceName = req.query.source || req.body.source;
-  logger.info("Manual scrape requestedmods", { source: sourceName });
+  logger.info("Manual scrape requested", { source: sourceName });
   try {
     if (!sourceName) return res.status(400).json({ error: "Missing source parameter." });
     const result = await scrapeSourceByName(sourceName);
-    // Fetch the newly created and updated articles from the database
     const articles = await Article.find({
       source: sourceName,
       moderationStatus: "scraped",
-      updatedAt: { $gte: new Date(Date.now() - 5 * 60 * 1000) }, // Last 5 minutes to capture recent changes
+      updatedAt: { $gte: new Date(Date.now() - 5 * 60 * 1000) },
     }).select("title link source domain publishedAt description imageUrl category uuid");
     res.json({
       message: `Scrape triggered for ${sourceName}`,
@@ -53,7 +52,7 @@ async function triggerShopifyPublish(req, res, next) {
   const sourceName = req.query.source || req.body.source;
   logger.info("Manual Shopify publish requested", { source: sourceName });
   try {
-    await sendArticlesToShopify(sourceName); // Pass sourceName to service
+    await sendArticlesToShopify(sourceName);
     res.json({ message: `Shopify publish completed${sourceName ? ` for ${sourceName}` : ""}.` });
   } catch (err) {
     next(err);
@@ -71,9 +70,10 @@ async function pushArticleToShopify(req, res, next) {
     if (article.moderationStatus !== "aiProcessed" && article.moderationStatus !== "sentToShopify") {
       return res.status(400).json({ error: "Article must be AI processed before sending to Shopify" });
     }
-    const handleBase = article.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+/g, "-");
+    const handleBase = article.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+/g, "-").substring(0, 50);
     const timestamp = article.publishedAt ? article.publishedAt.toISOString().split("T")[0].replace(/-/g, "") : new Date().toISOString().split("T")[0].replace(/-/g, "");
-    const handle = `${timestamp}-${handleBase}`;
+    const reversedTimestamp = (99999999 - parseInt(timestamp)).toString().padStart(8, "0");
+    const handle = `${reversedTimestamp}-${handleBase}`;
     const fields = [
       { key: "uuid", value: article.uuid || "" },
       { key: "publishdate", value: article.publishedAt ? article.publishedAt.toISOString() : new Date().toISOString() },
@@ -101,7 +101,7 @@ async function pushArticleToShopify(req, res, next) {
       `;
       variables = {
         id: article.shopifyMetaobjectId,
-        metaobject: { fields },
+        metaobject: { fields, handle },
       };
     } else {
       mutation = `
@@ -129,7 +129,7 @@ async function pushArticleToShopify(req, res, next) {
     if (!metaobject) throw new Error("No metaobject returned from Shopify");
     await Article.updateOne(
       { _id: article._id },
-      { shopifyMetaobjectId: metaobject.id, moderationStatus: "sentToShopify" }
+      { shopifyMetaobjectId: metaobject.id, shopifyHandle: metaobject.handle, moderationStatus: "sentToShopify" }
     );
     res.json({ message: `Article ${article.shopifyMetaobjectId ? "updated" : "sent"} to Shopify: ${article.link}` });
   } catch (err) {
@@ -200,5 +200,5 @@ module.exports = {
   triggerShopifyPublish,
   pushArticleToShopify,
   editArticleOnShopify,
-  processSingleArticleWithAI,
+  processSingleArticleWithAI
 };
