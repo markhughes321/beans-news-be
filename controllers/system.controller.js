@@ -8,18 +8,16 @@ const SHOPIFY_API_URL = "https://b4cd1f-0d.myshopify.com/admin/api/2023-04/graph
 const SHOPIFY_ACCESS_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN;
 async function triggerScrape(req, res, next) {
   const sourceName = req.query.source || req.body.source;
-  logger.info("Manual scrape requested", { source: sourceName });
+  logger.info("Manual scrape requestedmods", { source: sourceName });
   try {
     if (!sourceName) return res.status(400).json({ error: "Missing source parameter." });
     const result = await scrapeSourceByName(sourceName);
-
     // Fetch the newly created and updated articles from the database
     const articles = await Article.find({
       source: sourceName,
       moderationStatus: "scraped",
       updatedAt: { $gte: new Date(Date.now() - 5 * 60 * 1000) }, // Last 5 minutes to capture recent changes
     }).select("title link source domain publishedAt description imageUrl category uuid");
-
     res.json({
       message: `Scrape triggered for ${sourceName}`,
       newArticlesCount: result.newCount,
@@ -73,11 +71,9 @@ async function pushArticleToShopify(req, res, next) {
     if (article.moderationStatus !== "aiProcessed" && article.moderationStatus !== "sentToShopify") {
       return res.status(400).json({ error: "Article must be AI processed before sending to Shopify" });
     }
-
     const handleBase = article.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+/g, "-");
-    const dateStr = new Date().toISOString().split("T")[0].replace(/-/g, "");
-    const handle = `${handleBase}-${dateStr}`;
-
+    const timestamp = article.publishedAt ? article.publishedAt.toISOString().split("T")[0].replace(/-/g, "") : new Date().toISOString().split("T")[0].replace(/-/g, "");
+    const handle = `${timestamp}-${handleBase}`;
     const fields = [
       { key: "uuid", value: article.uuid || "" },
       { key: "publishdate", value: article.publishedAt ? article.publishedAt.toISOString() : new Date().toISOString() },
@@ -93,7 +89,6 @@ async function pushArticleToShopify(req, res, next) {
       { key: "seotitle", value: article.seoTitle || `${article.title} | BEANS News` },
       { key: "seodescription", value: article.seoDescription || "" },
     ];
-
     let mutation, variables;
     if (article.shopifyMetaobjectId) {
       mutation = `
@@ -121,21 +116,17 @@ async function pushArticleToShopify(req, res, next) {
         input: { handle, type: "news_articles", capabilities: { publishable: { status: "ACTIVE" } }, fields },
       };
     }
-
     const response = await axios.post(
       SHOPIFY_API_URL,
       { query: mutation, variables },
       { headers: { "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN, "Content-Type": "application/json" } }
     );
-
     const { data } = response;
     if (data.errors) throw new Error(`GraphQL errors: ${JSON.stringify(data.errors)}`);
     const resultKey = article.shopifyMetaobjectId ? "metaobjectUpdate" : "metaobjectCreate";
     const { metaobject, userErrors } = data.data[resultKey];
-
     if (userErrors && userErrors.length > 0) throw new Error(`Shopify user errors: ${JSON.stringify(userErrors)}`);
     if (!metaobject) throw new Error("No metaobject returned from Shopify");
-
     await Article.updateOne(
       { _id: article._id },
       { shopifyMetaobjectId: metaobject.id, moderationStatus: "sentToShopify" }
@@ -149,7 +140,6 @@ async function editArticleOnShopify(req, res, next) {
   const { uuid } = req.params;
   const updatedArticle = req.body;
   logger.info("Editing article on Shopify", { uuid });
-
   try {
     const article = await Article.findOne({ uuid }).lean();
     if (!article) return res.status(404).json({ error: "Article not found" });
@@ -160,7 +150,6 @@ async function editArticleOnShopify(req, res, next) {
       logger.error("Article has no Shopify metaobject ID despite being sentToShopify", { uuid });
       return res.status(400).json({ error: "Article is missing Shopify metaobject ID" });
     }
-
     const updated = await Article.findOneAndUpdate({ uuid }, updatedArticle, { new: true });
     await updateArticleInShopify(updated);
     res.json({ message: `Article updated in Shopify: ${updated.link}`, article: updated });

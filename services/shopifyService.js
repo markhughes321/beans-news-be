@@ -3,21 +3,16 @@ const logger = require("../config/logger");
 const Article = require("../models/Article");
 const SHOPIFY_API_URL = "https://b4cd1f-0d.myshopify.com/admin/api/2023-04/graphql.json";
 const SHOPIFY_ACCESS_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN;
-
 if (!SHOPIFY_ACCESS_TOKEN) {
   logger.error("SHOPIFY_ACCESS_TOKEN is not defined in environment variables");
   throw new Error("SHOPIFY_ACCESS_TOKEN is required");
 }
-
-// ./server/services/shopifyService.js
 async function updateArticleInShopify(article) {
   logger.debug("Updating article in Shopify", { link: article.link, shopifyId: article.shopifyMetaobjectId });
-
   if (!article.shopifyMetaobjectId || typeof article.shopifyMetaobjectId !== "string" || !article.shopifyMetaobjectId.startsWith("gid://shopify/Metaobject/")) {
     logger.error("Invalid or missing Shopify metaobject ID", { uuid: article.uuid, shopifyMetaobjectId: article.shopifyMetaobjectId });
     throw new Error(`Invalid or missing Shopify metaobject ID for article: ${article.link}`);
   }
-
   const metaobject = {
     fields: [
       { key: "uuid", value: article.uuid || "" },
@@ -35,7 +30,6 @@ async function updateArticleInShopify(article) {
       { key: "seodescription", value: article.seoDescription || "" },
     ],
   };
-
   const mutation = `
     mutation UpdateMetaobject($id: ID!, $metaobject: MetaobjectUpdateInput!) {
       metaobjectUpdate(id: $id, metaobject: $metaobject) {
@@ -52,7 +46,6 @@ async function updateArticleInShopify(article) {
       }
     }
   `;
-
   const requestPayload = {
     query: mutation,
     variables: {
@@ -60,9 +53,7 @@ async function updateArticleInShopify(article) {
       metaobject,                     // Fields go here
     },
   };
-
   logger.debug("GraphQL request payload to Shopify", { payload: JSON.stringify(requestPayload, null, 2) });
-
   try {
     const response = await axios.post(
       SHOPIFY_API_URL,
@@ -74,13 +65,11 @@ async function updateArticleInShopify(article) {
         },
       }
     );
-
     const { data } = response;
     if (data.errors) {
       logger.error("GraphQL response errors", { errors: data.errors });
       throw new Error(`GraphQL errors: ${JSON.stringify(data.errors)}`);
     }
-
     const { metaobject: updatedMetaobject, userErrors } = data.data.metaobjectUpdate;
     if (userErrors && userErrors.length > 0) {
       logger.error("Shopify user errors", { userErrors });
@@ -90,7 +79,6 @@ async function updateArticleInShopify(article) {
       logger.error("No metaobject returned", { response: data.data });
       throw new Error("No metaobject returned from Shopify after update");
     }
-
     logger.info("Successfully updated article in Shopify", { link: article.link, shopifyId: updatedMetaobject.id });
   } catch (error) {
     logger.error("Failed to update article in Shopify", {
@@ -123,8 +111,8 @@ async function sendArticlesToShopify(sourceName) {
         continue;
       }
       const handleBase = article.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+/g, "-").substring(0, 50);
-      const dateStr = article.publishedAt ? article.publishedAt.toISOString().split("T")[0].replace(/-/g, "") : new Date().toISOString().split("T")[0].replace(/-/g, "");
-      const handle = `${handleBase}-${dateStr}`;
+      const timestamp = article.publishedAt ? article.publishedAt.toISOString().split("T")[0].replace(/-/g, "") : new Date().toISOString().split("T")[0].replace(/-/g, "");
+      const handle = `${timestamp}-${handleBase}`;
       const input = {
         handle,
         type: "news_articles",
