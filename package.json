@@ -6,9 +6,10 @@
   "scripts": {
     "start": "node server.js",
     "start:pm2": "pm2 start server.js --name beans-news",
+    "save:pm2": "pm2 save",
+    "startup:pm2": "pm2 startup beans-news",
     "stop:pm2": "pm2 stop beans-news",
     "restart:pm2": "pm2 restart beans-news",
-    "startup:pm2": "pm2 startup beans-news",
     "logs:pm2": "pm2 logs beans-news",
     "db:connect": "mongo mongodb://localhost:27017/beansnews",
     "db:backup": "mongodump --uri mongodb://localhost:27017/beansnews --out ./backups/beansnews-$(date +%F)"

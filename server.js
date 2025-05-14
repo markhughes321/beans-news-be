@@ -8,43 +8,35 @@ const logger = require("./config/logger");
 const errorHandler = require("./middleware/errorHandler");
 const { initCronJobs } = require("./cron/scheduler");
 
+// Suppress punycode deprecation warning
+process.on("warning", (warning) => {
+  if (warning.name === "DeprecationWarning" && warning.message.includes("punycode")) {
+    // Suppress silently or log to debug only
+    logger.debug("Suppressed punycode deprecation warning", { warning: warning.message });
+  }
+});
+
 // Load .env
 const envPath = path.join(__dirname, ".env");
 const dotenvResult = dotenv.config({ path: envPath });
 if (dotenvResult.error) {
-  logger.error("Failed to load .env:", dotenvResult.error.message);
+  logger.error("Failed to load .env", { error: dotenvResult.error.message });
   process.exit(1);
 }
 logger.info(".env loaded successfully");
 
-// Add debug logging
-console.log("OPENAI_API_KEY:", process.env.OPENAI_API_KEY ? "[SET]" : "[UNSET]");
-console.log("SHOPIFY_ACCESS_TOKEN:", process.env.SHOPIFY_ACCESS_TOKEN ? "[SET]" : "[UNSET]");
-console.log("MONGO_URI:", process.env.MONGO_URI);
-
 const PORT = process.env.PORT || 3000;
 
 async function startServer() {
-  logger.info("Starting server...", {
-    env: {
-      PORT: process.env.PORT,
-      MONGO_URI: process.env.MONGO_URI ? "[REDACTED]" : undefined,
-      SHOPIFY_ACCESS_TOKEN: process.env.SHOPIFY_ACCESS_TOKEN ? "[REDACTED]" : undefined,
-      OPENAI_API_KEY: process.env.OPENAI_API_KEY ? "[REDACTED]" : undefined,
-    },
-  });
-
+  logger.info(`Starting server on port ${PORT}`);
   await connectDB();
-
   const app = express();
-
   const allowedOrigins = [
     "http://localhost:3010",
     "https://beans-news-fe.netlify.app",
     "https://beans.ie",
     "http://192.168.0.44:3020"
   ];
-
   app.use(cors({
     origin: (origin, callback) => {
       logger.debug("CORS check", { origin, allowedOrigins });
@@ -59,19 +51,16 @@ async function startServer() {
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: false
   }));
-
   app.use(express.json());
   app.use("/api", routes);
   app.use(errorHandler);
-
   app.listen(PORT, () => {
-    logger.info(`Server running on port ${PORT}`);
+    logger.info(`Server running on http://localhost:${PORT}`);
   });
-
   initCronJobs();
 }
 
 startServer().catch((error) => {
-  logger.error("Error starting server", { error });
+  logger.error("Error starting server", { error: error.message });
   process.exit(1);
 });

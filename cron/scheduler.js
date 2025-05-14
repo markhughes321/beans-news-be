@@ -1,7 +1,7 @@
 const cron = require("node-cron");
 const logger = require("../config/logger");
 const Scraper = require("../models/Scraper");
-const { scrapeSource } = require("../services/scraper");
+const { scrapeSource, processArticlesWithAI } = require("../services/scraper");
 const { sendArticlesToShopify } = require("../services/shopifyService");
 
 function initCronJobs() {
@@ -17,20 +17,25 @@ function initCronJobs() {
         try {
           const { newCount } = await scrapeSource(source);
           logger.info("CRON: Scrape completed", { source: source.name, newArticles: newCount });
+
+          // Immediately process scraped articles with AI
+          logger.info("CRON: Starting AI processing", { source: source.name });
+          const { processedCount } = await processArticlesWithAI(source.name);
+          logger.info("CRON: AI processing completed", { source: source.name, processedCount });
         } catch (err) {
-          logger.error("CRON: Scrape error", { source: source.name, error: err.message });
+          logger.error("CRON: Error in scrape or AI processing", { source: source.name, error: err.message });
         }
       });
     });
   });
 
-  const publishShopifySchedule = "0 8 * * *"; // Hardcoded for now, could be moved to config
+  const publishShopifySchedule = "0 8 * * *"; // Daily at 8:00 AM
   if (publishShopifySchedule) {
     logger.info("Scheduling Shopify publish", { schedule: publishShopifySchedule });
     cron.schedule(publishShopifySchedule, async () => {
       logger.info("CRON: Starting Shopify publish");
       try {
-        await sendArticlesToShopify();
+        await sendArticlesToShopify(); // Publishes all aiProcessed articles
         logger.info("CRON: Shopify publish completed");
       } catch (err) {
         logger.error("CRON: Shopify publish error", { error: err.message });
