@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "start:pm2": "pm2 start server.js --name beans-news",
+    "start:pm2": "pm2 start server.js --name beans-news-be",
     "save:pm2": "pm2 save",
     "startup:pm2": "pm2 startup beans-news",
     "stop:pm2": "pm2 stop beans-news",

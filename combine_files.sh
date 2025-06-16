@@ -29,6 +29,7 @@ find "$search_path" -type f \( -name "*.js" -o -name "*.db" -o -name "*.env" -o 
   -not -path "*/node_modules/*" \
   -not -name "structure.md" \
   -not -iname "readme.md" \
+    -not -iname ".env" \
   -not -path "*/logs/*" \
   -not -path "*/reports/*" \
   -not -path "*/backendApproach/*" \
